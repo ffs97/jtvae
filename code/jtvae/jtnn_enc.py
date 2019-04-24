@@ -113,7 +113,7 @@ class GraphGRU(nn.Module):
         mask = torch.ones(h.size(0), 1)
         mask[0] = 0  # first vector is padding
         mask = create_var(mask)
-        for it in xrange(self.depth):
+        for _ in xrange(self.depth):
             h_nei = index_select_ND(h, 0, mess_graph)
             sum_h = h_nei.sum(dim=1)
             z_input = torch.cat([x, sum_h], dim=1)

@@ -1,3 +1,4 @@
+import os
 import sys
 import math
 import rdkit
@@ -29,8 +30,9 @@ parser.add_argument('--save_dir', required=True)
 parser.add_argument('--load_epoch', type=int, default=0)
 
 parser.add_argument('--hidden_size', type=int, default=450)
-parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--latent_size', type=int, default=56)
+parser.add_argument('--batch_size', type=int, default=10)
+parser.add_argument('--tree_latent_size', type=int, default=56)
+parser.add_argument('--mol_latent_size', type=int, default=56)
 parser.add_argument('--depthT', type=int, default=20)
 parser.add_argument('--depthG', type=int, default=3)
 
@@ -39,7 +41,7 @@ parser.add_argument('--clip_norm', type=float, default=50.0)
 parser.add_argument('--beta', type=float, default=0.0)
 parser.add_argument('--step_beta', type=float, default=0.001)
 parser.add_argument('--max_beta', type=float, default=1.0)
-parser.add_argument('--warmup', type=int, default=40000)
+parser.add_argument('--warmup', type=int, default=5000)
 
 parser.add_argument('--epoch', type=int, default=20)
 parser.add_argument('--anneal_rate', type=float, default=0.9)
@@ -54,8 +56,8 @@ print args
 vocab = [x.strip("\r\n ") for x in open(args.vocab)]
 vocab = Vocab(vocab)
 
-model = JTNNVAE(vocab, args.hidden_size, args.latent_size,
-                args.depthT, args.depthG).cuda()
+model = JTNNVAE(vocab, args.hidden_size, args.tree_latent_size,
+                args.mol_latent_size, args.depthT, args.depthG).cuda()
 print model
 
 for param in model.parameters():
@@ -66,23 +68,36 @@ for param in model.parameters():
 
 if args.load_epoch > 0:
     model.load_state_dict(torch.load(
-        args.save_dir + "/model.iter-" + str(args.load_epoch)))
+        args.save_dir + "/model.iter-" + str(args.load_epoch)
+    ))
 
 print "Model #Params: %dK" % (
-    sum([x.nelement() for x in model.parameters()]) / 1000,)
+    sum([x.nelement() for x in model.parameters()]) / 1000,
+)
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
 scheduler = lr_scheduler.ExponentialLR(optimizer, args.anneal_rate)
 scheduler.step()
 
 
-def param_norm(m): return math.sqrt(
-    sum([p.norm().item() ** 2 for p in m.parameters()]))
+def param_norm(m):
+    return math.sqrt(
+        sum([p.norm().item() ** 2
+             for p in m.parameters()])
+    )
 
 
-def grad_norm(m): return math.sqrt(
-    sum([p.grad.norm().item() ** 2 for p in m.parameters() if p.grad is not None]))
+def grad_norm(m):
+    return math.sqrt(
+        sum([p.grad.norm().item() ** 2
+             for p in m.parameters()
+             if p.grad is not None
+             ])
+    )
 
+
+if not os.path.exists(args.save_dir):
+    os.makedirs(args.save_dir)
 
 total_step = args.load_epoch
 beta = args.beta
@@ -94,7 +109,9 @@ for epoch in xrange(args.epoch):
         total_step += 1
         try:
             model.zero_grad()
-            loss, tree_kl, mol_kl, wacc, tacc, sacc = model(batch, beta)
+            loss, recon_loss, kl_div, wacc, tacc, sacc = model(
+                batch, beta, total_step > args.warmup
+            )
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), args.clip_norm)
             optimizer.step()
@@ -103,13 +120,18 @@ for epoch in xrange(args.epoch):
             continue
 
         meters = meters + \
-            np.array([tree_kl, mol_kl, wacc * 100, tacc * 100, sacc * 100])
+            np.array([recon_loss, kl_div, wacc * 100, tacc * 100, sacc * 100])
 
         if total_step % args.print_iter == 0:
             meters /= args.print_iter
-            print "[%d] Beta: %.3f, KL: %.2f, %.2f, Word: %.2f, Topo: %.2f, Assm: %.2f, PNorm: %.2f, GNorm: %.2f" % (
-                total_step, beta, meters[0], meters[1], meters[2], meters[3], meters[4], param_norm(model), grad_norm(model))
+
+            # print "[%d] Beta: %.3f, RL: %.3f, KL: %.3f, Word: %.2f, Topo: %.2f, Assm: %.2f, PNorm: %.2f, GNorm: %.2f" % \
+            #     tuple([total_step, beta] + list(meters) +
+            #           [param_norm(model), grad_norm(model)])
+            print "[%d] Beta: %.3f, RL: %.3f, KL: %.3f, Word: %.2f, Topo: %.2f, Assm: %.2f" % \
+                  tuple([total_step, beta] + list(meters))
             sys.stdout.flush()
+
             meters *= 0
 
         if total_step % args.save_iter == 0:

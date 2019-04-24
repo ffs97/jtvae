@@ -1,0 +1,13 @@
+\documentclass{article}
+\usepackage{paper}
+
+\setpapertitle{Interpretable Generative Model for Molecule Design}
+
+\begin{document}
+\makeheader
+
+\abstract{
+	A recent advance in automatic molecule design is the use of generative latent variable models, particularly variational autoencoders. Such models, often based on Gaussian latent variables, offer excellect reconstruction and generative capabilities, however, afford little to no interpretability. We propose to resolve this issue by using an expressive restricted Boltzmann machine (RBM) prior on the latent variables. Our approach is based on the state of the art model for molecule design, the Junction Tree VAE in which, similar to vanilla VAEs, the latent space is continuous and, therefore, offers no interpretability. Using binary latent variables fixes this situation and, coupled with the RBM prior, offer both interpretability and predictive powers of the original model. We present a quantitative as well as qualitative analysis on the reconstruction and sampling on the ZINC dataset. The learning is based on the Gumbolt approach which relies on smoothening the discrete latent space while gradient computation to facilitate backpropogation over the autoencoder network. We further explore a few directions to extend the model further.
+}
+
+\end{document}
