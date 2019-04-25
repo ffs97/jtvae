@@ -30,6 +30,7 @@ parser.add_argument('--save_dir', required=True)
 parser.add_argument('--load_epoch', type=int, default=0)
 
 parser.add_argument('--hidden_size', type=int, default=450)
+parser.add_argument("--hierarchical", action="store_true", default=False)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--tree_latent_size', type=int, default=56)
 parser.add_argument('--mol_latent_size', type=int, default=56)
@@ -56,7 +57,7 @@ print args
 vocab = [x.strip("\r\n ") for x in open(args.vocab)]
 vocab = Vocab(vocab)
 
-model = JTNNVAE(vocab, args.hidden_size, args.tree_latent_size,
+model = JTNNVAE(vocab, args.hierarchical, args.hidden_size, args.tree_latent_size,
                 args.mol_latent_size, args.depthT, args.depthG).cuda()
 print model
 

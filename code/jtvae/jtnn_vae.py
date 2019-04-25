@@ -18,9 +18,12 @@ import torch.nn.functional as F
 
 
 class JTNNVAE(nn.Module):
-    def __init__(self, vocab, hidden_size, tree_latent_size, mol_latent_size, depthT, depthG):
+    def __init__(self, vocab, hierarchical, hidden_size, tree_latent_size, mol_latent_size, depthT, depthG):
         super(JTNNVAE, self).__init__()
         self.vocab = vocab
+
+        self.tree_latent_size = tree_latent_size
+        self.mol_latent_size = mol_latent_size
 
         self.jtnn = JTNNEncoder(
             hidden_size, depthT,
@@ -37,15 +40,25 @@ class JTNNVAE(nn.Module):
         self.A_assm = nn.Linear(mol_latent_size, hidden_size, bias=False)
         self.assm_loss = nn.CrossEntropyLoss(size_average=False)
 
-        # self.z_tree = Normal(hidden_size, latent_size)
-        # self.z_mol = Normal(hidden_size, latent_size)
-        # self.z_tree = Discrete(hidden_size, latent_size, 2)
-        # self.z_mol = Discrete(hidden_size, latent_size, 2)
-
         self.dis_z = RBM(hidden_size, tree_latent_size, mol_latent_size)
 
-        self.gas_z_tree = Normal(hidden_size, tree_latent_size)
-        self.gas_z_mol = Normal(hidden_size, mol_latent_size)
+        self.hierarchical = hierarchical
+
+        if hierarchical:
+            self.gas_z_tree = Normal(
+                hidden_size + tree_latent_size, tree_latent_size
+            )
+            self.gas_z_mol = Normal(
+                hidden_size + mol_latent_size, mol_latent_size
+            )
+
+        else:
+            self.gas_z_tree = Normal(
+                hidden_size, tree_latent_size
+            )
+            self.gas_z_mol = Normal(
+                hidden_size, mol_latent_size
+            )
 
     def assm(self, mol_batch, jtmpn_holder, x_mol_vecs, x_tree_mess):
         jtmpn_holder, batch_idx = jtmpn_holder
@@ -225,6 +238,10 @@ class JTNNVAE(nn.Module):
         (dis_z_tree_vecs, dis_z_mol_vecs), dis_kl = self.dis_z(x_vecs)
 
         if use_gaussian:
+            if self.hierarchical:
+                x_tree_vecs = torch.cat((x_tree_vecs, dis_z_tree_vecs), dim=1)
+                x_mol_vecs = torch.cat((x_mol_vecs, dis_z_mol_vecs), dim=1)
+
             gas_z_tree_vecs, gas_tree_kl = self.gas_z_tree(x_tree_vecs)
             gas_z_mol_vecs, gas_mol_kl = self.gas_z_mol(x_mol_vecs)
 
@@ -269,14 +286,24 @@ class JTNNVAE(nn.Module):
 
             x_vecs = torch.cat((x_tree_vecs, x_mol_vecs), dim=1)
 
-            dis_z_tree_vecs, dis_z_mol_vecs = self.dis_z(x_vecs, sample=False)
+            dis_z_vecs = self.dis_z(x_vecs, sample=False)
+            dis_z_tree_vecs, dis_z_mol_vecs = dis_z_vecs
+
+            x_tree_vecs = torch.cat((x_tree_vecs, dis_z_tree_vecs), dim=1)
+            x_mol_vecs = torch.cat((x_mol_vecs, dis_z_mol_vecs), dim=1)
 
             gas_z_tree_vecs = self.gas_z_tree.sample_feed(
-                vecs=x_tree_vecs, gamma=10
+                vecs=x_tree_vecs, gamma=100
             ).cuda()
             gas_z_mol_vecs = self.gas_z_mol.sample_feed(
-                vecs=x_mol_vecs, gamma=10
+                vecs=x_mol_vecs, gamma=100
             ).cuda()
+
+            # dis_z_vecs = self.dis_z.sample_feed(1)
+            # dis_z_mol_vecs, dis_z_tree_vecs = dis_z_vecs
+
+            # gas_z_tree_vecs = self.gas_z_tree(x_tree_vecs, sample=False)
+            # gas_z_mol_vecs = self.gas_z_mol(x_mol_vecs, sample=False)
 
         else:
             raise AttributeError

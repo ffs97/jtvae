@@ -1,0 +1,6 @@
+\beamer@sectionintoc {1}{Background}{2}{0}{1}
+\beamer@subsectionintoc {1}{1}{Black Box Variational Inference}{3}{0}{1}
+\beamer@subsectionintoc {1}{2}{Gumbel-Softmax Trick}{8}{0}{1}
+\beamer@sectionintoc {2}{The Gumbolt Trick}{9}{0}{2}
+\beamer@sectionintoc {3}{Molecular Design}{18}{0}{3}
+\beamer@sectionintoc {4}{Gumbolt JT-VAE}{36}{0}{4}

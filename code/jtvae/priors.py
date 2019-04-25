@@ -18,7 +18,7 @@ def sample_bernoulli(probs):
 
     return torch.where(
         torch.rand(shape) - probs.cpu() < 0,
-        torch.ones(shape), torch.zeros(shape)
+        torch.zeros(shape), torch.ones(shape)
     ).cuda()
 
 
@@ -60,8 +60,12 @@ class Normal(nn.Module):
 
         return kl
 
-    def __call__(self, vecs):
+    def __call__(self, vecs, sample=True):
         mean = self.mean(vecs)
+
+        if not sample:
+            return mean
+
         log_var = -torch.abs(self.log_var(vecs))
 
         epsilon = self.sample_reparametrization_variable(mean.shape[0]).cuda()
@@ -138,6 +142,7 @@ class Discrete(nn.Module):
         return kl
 
     def __call__(self, vecs):
+        # TODO: Add sample=False
         logits = self.logits(vecs).view(-1, self.dim, self.n_classes)
 
         epsilon = self.sample_reparametrization_variable(
@@ -308,7 +313,7 @@ class RBM(nn.Module):
 
             z_vecs = torch.where(
                 logits.cpu() < 0,
-                torch.ones(shape), torch.zeros(shape)
+                torch.zeros(shape), torch.ones(shape)
             ).cuda()
 
         z_vecs = torch.split(
